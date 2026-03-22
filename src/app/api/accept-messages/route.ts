@@ -1,0 +1,76 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/options";
+import dbConnect from "@/src/lib/dbConnect";
+import UserModel from "@/src/model/User";
+import { User } from "next-auth";
+import { success } from "zod";
+
+export async function POST(req: Request) {
+    await dbConnect()
+    const session = await getServerSession(authOptions)
+    const user :User = session?.user as User
+    if (!session || !session.user) {
+        return Response.json({
+            success: false,
+            message: "Unauthorized"
+        }, { status: 401 })
+    }
+    const userId = user.id;
+    const {acceptMessage} = await req.json()
+    try {
+        const updatedUser = await UserModel.findByIdAndUpdate(userId, { isAccptingMessages: acceptMessage },
+        { new: true }
+        )
+        if(!updatedUser){
+            return Response.json({
+                success: false,
+                message: "User not found"
+            }, { status: 401 })
+        }
+        return Response.json({
+            success: true,
+            message: "Message acceptance status updated successfully",
+            updatedUser
+        }, { status: 200 })
+    } catch (error) {
+        console.log("failed to accept message")
+        return Response.json({
+            success: false,
+            message: "Internal Server Error"
+        }, { status: 500 })
+    }
+}
+
+export async function GET(req: Request) {
+    await dbConnect()
+    const session = await getServerSession(authOptions)
+    const user :User = session?.user as User
+    if (!session || !session.user) {
+        return Response.json({
+            success: false,
+            message: "Unauthorized"
+        }, { status: 401 })
+    }
+    const userId = user.id;
+    try{
+        const foundUser = await UserModel.findById(userId)
+    if(!foundUser){
+        return Response.json({
+            success: false,
+            message: "User not found"
+        }, { status: 401 })
+    }
+    return Response.json({
+        success: true,
+        isAcceptingMessages: foundUser.isAccptingMessages
+    }, { status: 200 })
+
+    } catch (error) {
+        console.log("failed to get message acceptance status")
+        return Response.json({
+            success: false,
+            message: "Internal Server Error"
+        }, { status: 500 })
+
+    }
+}
