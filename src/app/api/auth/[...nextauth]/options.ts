@@ -39,7 +39,14 @@ export const authOptions: NextAuthOptions = {
                     const isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
                     
                     if (isPasswordCorrect) {
-                        return user;
+                        // Convert Mongoose document to plain object for NextAuth serialization
+                        return {
+                            id: user._id.toString(),
+                            email: user.email,
+                            username: user.username,
+                            isVerified: user.isVerified,
+                            isAcceptingMessages: user.isAcceptingMessages,
+                        };
                     } else {
                         throw new Error("Incorrect password");
                     }
@@ -54,7 +61,7 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         async jwt({ token, user }) {
             if (user) {
-                token._id = user._id?.toString();
+                token._id = user.id || user._id;
                 token.isVerified = user.isVerified;
                 token.isAcceptingMessages = user.isAcceptingMessages;
                 token.username = user.username;
@@ -62,11 +69,11 @@ export const authOptions: NextAuthOptions = {
             return token;
         },
         async session({ session, token }) {
-            if (token) {
-                session.user._id = token._id;
-                session.user.isVerified = token.isVerified;
-                session.user.isAcceptingMessages = token.isAcceptingMessages;
-                session.user.username = token.username;
+            if (session.user && token) {
+                session.user._id = token._id as string;
+                session.user.isVerified = token.isVerified as boolean;
+                session.user.isAcceptingMessages = token.isAcceptingMessages as boolean;
+                session.user.username = token.username as string;
             }
             return session;
         },
