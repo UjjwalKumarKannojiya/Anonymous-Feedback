@@ -1,13 +1,12 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/options";
-import dbConnect from "@/src/lib/dbConnect";
-import UserModel from "@/src/model/User";
+import dbConnect from "@/lib/dbConnect";
+import UserModel from "@/model/User";
 import { User } from "next-auth";
-import { success } from "zod";
 import mongoose from "mongoose";
 
 
-export async function GET(request: Request) {
+export async function GET() {
     await dbConnect();
     const session = await getServerSession(authOptions)
     const user :User = session?.user as User
@@ -20,7 +19,7 @@ export async function GET(request: Request) {
     const userId = new mongoose.Types.ObjectId(user._id);
     try {
         const user = await UserModel.aggregate([
-            { $match: { id: userId } },
+            { $match: { _id: userId } },
             {$unwind: "$messages" },
             {$sort: { "messages.createdAt": -1 } },
             {$group: {_id: "$_id", messages: { $push: "$messages" } } }
@@ -36,7 +35,21 @@ export async function GET(request: Request) {
             messages: user[0].messages
         }, { status: 200 })
     } catch (error) {
-        console.log("Unexpected error fetching messages:", error);  
+        const typedError = error as Error;
+        console.error("Unexpected error fetching messages:", typedError.message);  
+        
+        // Check if it's a database connection error
+        if (
+            typedError.message?.includes('authentication failed') ||
+            typedError.message?.includes('ECONNREFUSED') ||
+            typedError.message?.includes('ENOTFOUND')
+        ) {
+            return Response.json({
+                success: false,
+                message: "Service temporarily unavailable. Please try again later."
+            }, { status: 503 })
+        }
+        
         return Response.json({
             success: false,
             message: "Error fetching messages"
